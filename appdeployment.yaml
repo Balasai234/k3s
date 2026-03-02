@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: env-drift-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: env-drift-app
+  template:
+    metadata:
+      labels:
+        app: env-drift-app
+    spec:
+      containers:
+      - name: env-drift-app
+        image: nginx   # temporary test image
+        ports:
+        - containerPort: 80
