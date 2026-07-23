@@ -1,0 +1,220 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - develop
+      - 'release/**'
+    paths:
+      - 'api-gateway/**'
+
+jobs:
+
+#---------------------------------------------------
+# CHECKOUT CODE
+#---------------------------------------------------
+
+  checkout:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+
+#---------------------------------------------------
+# CODEQL SECURITY SCAN
+#---------------------------------------------------
+
+  codeql:
+
+    needs: checkout
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+
+#---------------------------------------------------
+# OWASP DEPENDENCY CHECK
+#---------------------------------------------------
+
+  owasp:
+
+    needs: codeql
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Perform Dependency Check
+        run: |
+          echo "Performing OWASP Dependency Check"
+
+
+#---------------------------------------------------
+# UNIT & INTEGRATION TESTING
+#---------------------------------------------------
+
+  testing:
+
+    needs: owasp
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run Unit Tests
+        run: mvn test
+
+
+#---------------------------------------------------
+# BUILD STAGE
+#---------------------------------------------------
+
+  build:
+
+    needs: testing
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Build Spring Boot Application
+        run: mvn clean package
+
+
+#---------------------------------------------------
+# DOCKER BUILD
+#---------------------------------------------------
+
+  docker-build:
+
+    needs: build
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Build Docker Image
+        run: |
+          docker build -t api-gateway:v1 .
+
+
+#---------------------------------------------------
+# TRIVY SCAN
+#---------------------------------------------------
+
+  trivy-scan:
+
+    needs: docker-build
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Scan Docker Image
+        run: |
+          echo "Scanning Docker Image"
+
+
+#---------------------------------------------------
+# IMAGE SIGNING
+#---------------------------------------------------
+
+  image-signing:
+
+    needs: trivy-scan
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Sign Docker Image
+        run: |
+          echo "Signing Docker Image"
+
+
+#---------------------------------------------------
+# PUSH IMAGE TO ECR
+#---------------------------------------------------
+
+  push-to-ecr:
+
+    needs: image-signing
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Push Image to Amazon ECR
+        run: |
+          echo "Pushing Docker Image to ECR"
+
+
+#---------------------------------------------------
+# UPDATE GITOPS REPOSITORY
+#---------------------------------------------------
+
+  update-gitops:
+
+    needs: push-to-ecr
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Update Image Tag
+        run: |
+          echo "Updating values.yaml file"
+
+
+#---------------------------------------------------
+# DEPLOYMENT
+#---------------------------------------------------
+
+  deployment:
+
+    needs: update-gitops
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ArgoCD Synchronization
+        run: |
+          echo "Deploying Application"
+
+
+#---------------------------------------------------
+# SYNTHETIC TESTING
+#---------------------------------------------------
+
+  synthetic-testing:
+
+    needs: deployment
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Synthetic Testing
+        run: |
+          echo "Performing Synthetic Testing"
+
+
+#---------------------------------------------------
+# PRODUCTION DEPLOYMENT
+#---------------------------------------------------
+
+  production:
+
+    needs: synthetic-testing
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Production Deployment
+        run: |
+          echo "Production Deployment Successful"
